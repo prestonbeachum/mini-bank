@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>dev.minibank</groupId>
 	<artifactId>mini-bank</artifactId>
-	<version>0.0.0</version><!-- x-release-please-version -->
+	<version>0.1.0</version><!-- x-release-please-version -->
 	<name>mini-bank</name>
 	<description>Synthetic core-banking backend for practising backend and cloud tooling</description>
 	<url/>
