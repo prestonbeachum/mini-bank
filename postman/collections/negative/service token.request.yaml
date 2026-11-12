@@ -1,0 +1,17 @@
+$kind: http-request
+method: POST
+url: '{{base_url}}/v1/auth/token'
+order: 2000
+headers:
+  - key: Content-Type
+    value: 'application/json'
+body:
+  type: json
+  content: |-
+    {"client_id": "{{service_client_id}}", "client_secret": "{{service_client_secret}}"}
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('service token issued', () => pm.response.to.have.status(200));
+      pm.collectionVariables.set('service_token', pm.response.json().access_token);

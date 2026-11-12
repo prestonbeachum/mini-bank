@@ -1,0 +1,26 @@
+$kind: http-request
+method: POST
+url: '{{base_url}}/v1/transfers'
+order: 9000
+headers:
+  - key: Content-Type
+    value: 'application/json'
+  - key: Idempotency-Key
+    value: '{{$guid}}'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{customer_token}}'
+body:
+  type: json
+  content: |-
+    {"source_account_id": "{{checking_id}}", "destination_account_id": "{{savings_id}}", "amount_minor": 2500, "currency": "USD"}
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('transfer posted', () => pm.response.to.have.status(201));
+      const t = pm.response.json();
+      pm.test('is a TRANSFER', () => pm.expect(t.type).to.eql('TRANSFER'));
+      pm.test('postings balance to zero', () => pm.expect(t.postings.reduce((s, p) => s + p.amount_minor, 0)).to.eql(0));

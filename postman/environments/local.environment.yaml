@@ -5,3 +5,21 @@ values:
     enabled: true
     type: default
     description: Docker Compose app container
+  - key: ops_client_id
+    value: cli_ops_local
+    enabled: true
+    type: default
+  - key: ops_client_secret
+    value: local-ops-secret
+    enabled: true
+    type: secret
+    description: Local-only synthetic credential from docker-compose.yml. Shared environments inject theirs at run time.
+  - key: service_client_id
+    value: cli_service_local
+    enabled: true
+    type: default
+  - key: service_client_secret
+    value: local-service-secret
+    enabled: true
+    type: secret
+    description: Local-only synthetic credential from docker-compose.yml. Shared environments inject theirs at run time.

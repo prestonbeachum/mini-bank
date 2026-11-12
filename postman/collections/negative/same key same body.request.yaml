@@ -1,0 +1,26 @@
+$kind: http-request
+name: 'same key, same body (replayed)'
+method: POST
+url: '{{base_url}}/v1/transfers'
+order: 13000
+headers:
+  - key: Content-Type
+    value: 'application/json'
+  - key: Idempotency-Key
+    value: '{{replay_key}}'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{ada_token}}'
+body:
+  type: json
+  content: |-
+    {"source_account_id": "{{ada_account}}", "destination_account_id": "{{eve_account}}", "amount_minor": 1000, "currency": "USD"}
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 201', () => pm.response.to.have.status(201));
+      pm.test('marked as replay', () => pm.expect(pm.response.headers.get('Idempotent-Replayed')).to.eql('true'));
+      pm.test('same transaction', () => pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get('replay_txn')));

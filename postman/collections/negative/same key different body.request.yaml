@@ -1,0 +1,26 @@
+$kind: http-request
+name: 'same key, different body (422)'
+method: POST
+url: '{{base_url}}/v1/transfers'
+order: 14000
+headers:
+  - key: Content-Type
+    value: 'application/json'
+  - key: Idempotency-Key
+    value: '{{replay_key}}'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{ada_token}}'
+body:
+  type: json
+  content: |-
+    {"source_account_id": "{{ada_account}}", "destination_account_id": "{{eve_account}}", "amount_minor": 1001, "currency": "USD"}
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 422', () => pm.response.to.have.status(422));
+      pm.test('problem+json', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json'));
+      pm.test('type is idempotency-key-reused', () => pm.expect(pm.response.json().type).to.match(/\/idempotency-key-reused$/));

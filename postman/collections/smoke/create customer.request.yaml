@@ -1,0 +1,30 @@
+$kind: http-request
+method: POST
+url: '{{base_url}}/v1/customers'
+order: 4000
+headers:
+  - key: Content-Type
+    value: 'application/json'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{ops_token}}'
+body:
+  type: json
+  content: |-
+    {"email": "{{customer_email}}", "name": "Smoke Test"}
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      pm.collectionVariables.set('customer_email', `smoke-${pm.variables.replaceIn('{{$guid}}')}@example.test`);
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('customer created', () => pm.response.to.have.status(201));
+      const body = pm.response.json();
+      pm.test('credentials returned once', () => pm.expect(body.credentials.client_secret).to.be.a('string'));
+      pm.collectionVariables.set('customer_id', body.id);
+      pm.collectionVariables.set('customer_client_id', body.credentials.client_id);
+      pm.collectionVariables.set('customer_client_secret', body.credentials.client_secret);

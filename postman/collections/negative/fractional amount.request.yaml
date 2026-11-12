@@ -1,0 +1,24 @@
+$kind: http-request
+name: 'fractional amount (400)'
+method: POST
+url: '{{base_url}}/v1/transfers'
+order: 20000
+headers:
+  - key: Content-Type
+    value: 'application/json'
+  - key: Idempotency-Key
+    value: '{{$guid}}'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{ada_token}}'
+body:
+  type: json
+  content: |-
+    {"source_account_id": "{{ada_account}}", "destination_account_id": "{{eve_account}}", "amount_minor": 10.5, "currency": "USD"}
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 400', () => pm.response.to.have.status(400));

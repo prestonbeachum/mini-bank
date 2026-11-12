@@ -1,19 +1,27 @@
 openapi: 3.1.0
 info:
   title: Mini Bank API
-  version: 0.1.0
+  version: 0.2.0
   summary: Synthetic core-banking backend. All money and customers are fake.
   description: |
-    Spec-first contract for Mini Bank. Phase 0 defines only the health endpoint and the
-    shared conventions; ledger endpoints (build doc section 6) are added in phase 1
-    before they are implemented.
+    Spec-first contract for Mini Bank. This version covers the Core tier (build doc
+    section 2): auth, customers, accounts, deposits, transfers, balances and history.
+    Holds, reversals, webhooks and statements arrive with the Cool tier.
 
     Conventions:
     - Paths are prefixed with `/v1` (operational endpoints such as `/health` are not).
-    - Money is an integer amount in minor units plus an ISO 4217 currency.
+    - Money is an integer amount in minor units (`*_minor`) plus an ISO 4217 currency.
+      v1 is single-currency: every account is USD.
     - Errors are RFC 9457 `application/problem+json`.
     - Lists use keyset cursors, never offsets.
     - Every money-moving POST requires an `Idempotency-Key` header.
+    - A resource the caller may not see returns 404, never 403, so ids cannot be probed.
+
+    Idempotency: a key is scoped to the caller (JWT subject) and binds the first
+    *successful* response for 24 hours. Replaying the key with the same body returns
+    that stored response with `Idempotent-Replayed: true`. Replaying it with a different
+    body returns 422. A request that failed (for example insufficient funds) does not
+    consume its key, so the same key may be retried.
   license:
     name: MIT
     identifier: MIT
@@ -23,6 +31,14 @@ servers:
 tags:
   - name: operations
     description: Liveness and dependency health
+  - name: auth
+    description: Token issuance and verification keys
+  - name: customers
+  - name: accounts
+  - name: money-movement
+    description: Deposits and transfers. All require an Idempotency-Key.
+security:
+  - bearerAuth: []
 paths:
   /health:
     get:
@@ -40,10 +56,9 @@ paths:
                 $ref: '#/components/schemas/Health'
               example:
                 status: UP
+                groups: [liveness, readiness]
                 components:
                   db:
-                    status: UP
-                  diskSpace:
                     status: UP
                   ping:
                     status: UP
@@ -58,15 +73,341 @@ paths:
                 components:
                   db:
                     status: DOWN
-                  ping:
-                    status: UP
+
+  /.well-known/jwks.json:
+    get:
+      operationId: getJwks
+      summary: Public keys that verify issued tokens
+      tags: [auth]
+      security: []
+      responses:
+        '200':
+          description: JSON Web Key Set.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [keys]
+                properties:
+                  keys:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+
+  /v1/auth/token:
+    post:
+      operationId: issueToken
+      summary: Exchange client credentials for a short-lived JWT
+      description: |
+        Ops and service clients are provisioned by configuration. Customer clients are
+        issued when ops creates a customer. Tokens expire after 15 minutes.
+      tags: [auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRequest'
+            example:
+              client_id: cli_ops_local
+              client_secret: change-me
+      responses:
+        '200':
+          description: Token issued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Unknown client or wrong secret.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /v1/customers:
+    post:
+      operationId: createCustomer
+      summary: Create a customer and issue its API credentials
+      description: Requires the `ops` role. The client secret is returned once and never again.
+      tags: [customers]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCustomerRequest'
+            example:
+              email: ada@example.test
+              name: Ada Example
+      responses:
+        '201':
+          description: Customer created.
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatedCustomer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: A customer with this email already exists.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /v1/accounts:
+    post:
+      operationId: openAccount
+      summary: Open a checking or savings account
+      description: |
+        A customer opens an account for themselves (`customer_id` must be omitted or
+        equal their own id). Ops must pass `customer_id`.
+      tags: [accounts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpenAccountRequest'
+            example:
+              kind: CHECKING
+      responses:
+        '201':
+          description: Account opened.
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/accounts/{accountId}:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+    get:
+      operationId: getAccount
+      summary: Balance, available funds and limits
+      tags: [accounts]
+      responses:
+        '200':
+          description: The account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/accounts/{accountId}/transactions:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+    get:
+      operationId: listAccountEntries
+      summary: Paginated posting history, newest first
+      tags: [accounts]
+      parameters:
+        - name: cursor
+          in: query
+          description: Opaque cursor from a previous page's `next_cursor`.
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+      responses:
+        '200':
+          description: One page of entries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntryPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/deposits:
+    post:
+      operationId: createDeposit
+      summary: Credit an account from the mock external source
+      description: |
+        Requires the `service` role. Debits the internal settlement account and credits
+        the target account in one balanced transaction.
+      tags: [money-movement]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DepositRequest'
+            example:
+              account_id: 0193a2f0-7c1e-7d2a-9c3b-5e6f7a8b9c0d
+              amount_minor: 10000
+              currency: USD
+              reference: payroll-2026-11
+      responses:
+        '201':
+          $ref: '#/components/responses/TransactionPosted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+
+  /v1/transfers:
+    post:
+      operationId: createTransfer
+      summary: Move money between two accounts
+      description: |
+        Customers may transfer only from accounts they own; the destination can be any
+        active account. The `service` role may transfer between any accounts.
+      tags: [money-movement]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransferRequest'
+            example:
+              source_account_id: 0193a2f0-7c1e-7d2a-9c3b-5e6f7a8b9c0d
+              destination_account_id: 0193a2f0-8d2f-7e3b-8d4c-6f7a8b9c0d1e
+              amount_minor: 2500
+              currency: USD
+              reference: rent share
+      responses:
+        '201':
+          $ref: '#/components/responses/TransactionPosted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: An account is frozen or closed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: Short-lived (15 min) JWT from POST /v1/auth/token (phase 1).
+      description: Short-lived (15 min) RS256 JWT from POST /v1/auth/token.
+
+  parameters:
+    AccountId:
+      name: accountId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Client-chosen unique key, 1 to 255 printable ASCII characters. A UUID works well.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+        pattern: '^[\x21-\x7E]+$'
+
+  responses:
+    TransactionPosted:
+      description: The transaction posted, or a replay of the original response for this Idempotency-Key.
+      headers:
+        Idempotent-Replayed:
+          description: Present and `true` when this is a stored response being replayed.
+          schema:
+            type: string
+            enum: ['true']
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Transaction'
+    BadRequest:
+      description: Malformed request or a field failed validation.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unauthorized:
+      description: Missing, expired or invalid bearer token.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Forbidden:
+      description: The caller's role may not call this operation at all.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: The resource does not exist or the caller may not see it.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unprocessable:
+      description: |
+        A business rule rejected the request: insufficient funds, currency mismatch,
+        same source and destination, or an Idempotency-Key reused with a different body.
+        The `type` URI says which.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
   schemas:
     HealthStatus:
       type: string
@@ -90,19 +431,242 @@ components:
             properties:
               status:
                 $ref: '#/components/schemas/HealthStatus'
-    Money:
+
+    Currency:
+      type: string
+      description: ISO 4217 code. v1 accepts only USD.
+      enum: [USD]
+    AmountMinor:
+      type: integer
+      format: int64
+      description: Amount in minor units (cents). Never a floating-point number.
+
+    TokenRequest:
       type: object
-      description: An amount in minor units (cents for USD). Never a floating-point number.
-      required: [amount_minor, currency]
+      required: [client_id, client_secret]
       properties:
+        client_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+        client_secret:
+          type: string
+          minLength: 1
+          maxLength: 256
+    TokenResponse:
+      type: object
+      required: [access_token, token_type, expires_in]
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+          enum: [Bearer]
+        expires_in:
+          type: integer
+          description: Seconds until expiry.
+          examples: [900]
+
+    CreateCustomerRequest:
+      type: object
+      required: [email, name]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+    Customer:
+      type: object
+      required: [id, email, name, status, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        status:
+          type: string
+          enum: [ACTIVE, FROZEN, CLOSED]
+        created_at:
+          type: string
+          format: date-time
+    CreatedCustomer:
+      allOf:
+        - $ref: '#/components/schemas/Customer'
+        - type: object
+          required: [credentials]
+          properties:
+            credentials:
+              type: object
+              description: Shown once. Store the secret now; it cannot be retrieved later.
+              required: [client_id, client_secret]
+              properties:
+                client_id:
+                  type: string
+                client_secret:
+                  type: string
+
+    OpenAccountRequest:
+      type: object
+      required: [kind]
+      properties:
+        kind:
+          type: string
+          enum: [CHECKING, SAVINGS]
+        customer_id:
+          type: string
+          format: uuid
+          description: Required for ops; for a customer, omitted or their own id.
+        currency:
+          $ref: '#/components/schemas/Currency'
+    Account:
+      type: object
+      required: [id, customer_id, kind, currency, status, balance_minor, holds_minor,
+                 overdraft_limit_minor, available_minor, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        customer_id:
+          type: [string, 'null']
+          format: uuid
+          description: Null for internal accounts.
+        kind:
+          type: string
+          enum: [CHECKING, SAVINGS, INTERNAL]
+        currency:
+          $ref: '#/components/schemas/Currency'
+        status:
+          type: string
+          enum: [ACTIVE, FROZEN, CLOSED]
+        balance_minor:
+          $ref: '#/components/schemas/AmountMinor'
+        holds_minor:
+          $ref: '#/components/schemas/AmountMinor'
+        overdraft_limit_minor:
+          $ref: '#/components/schemas/AmountMinor'
+        available_minor:
+          description: balance − holds + overdraft limit.
+          $ref: '#/components/schemas/AmountMinor'
+        created_at:
+          type: string
+          format: date-time
+
+    DepositRequest:
+      type: object
+      required: [account_id, amount_minor, currency]
+      properties:
+        account_id:
+          type: string
+          format: uuid
         amount_minor:
           type: integer
           format: int64
-          examples: [12500]
+          minimum: 1
+          maximum: 100000000
         currency:
+          $ref: '#/components/schemas/Currency'
+        reference:
           type: string
-          pattern: '^[A-Z]{3}$'
-          examples: [USD]
+          maxLength: 140
+    TransferRequest:
+      type: object
+      required: [source_account_id, destination_account_id, amount_minor, currency]
+      properties:
+        source_account_id:
+          type: string
+          format: uuid
+        destination_account_id:
+          type: string
+          format: uuid
+        amount_minor:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 100000000
+        currency:
+          $ref: '#/components/schemas/Currency'
+        reference:
+          type: string
+          maxLength: 140
+
+    Posting:
+      type: object
+      required: [account_id, amount_minor]
+      properties:
+        account_id:
+          type: string
+          format: uuid
+        amount_minor:
+          description: Signed. Credit is positive, debit is negative.
+          $ref: '#/components/schemas/AmountMinor'
+    Transaction:
+      type: object
+      required: [id, type, status, currency, postings, posted_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [DEPOSIT, TRANSFER]
+        status:
+          type: string
+          enum: [POSTED, REVERSED]
+        currency:
+          $ref: '#/components/schemas/Currency'
+        reference:
+          type: [string, 'null']
+        postings:
+          type: array
+          description: Always sums to zero.
+          minItems: 2
+          items:
+            $ref: '#/components/schemas/Posting'
+        posted_at:
+          type: string
+          format: date-time
+
+    Entry:
+      type: object
+      description: One posting on this account, with its transaction context.
+      required: [posting_id, transaction_id, type, amount_minor, posted_at]
+      properties:
+        posting_id:
+          type: integer
+          format: int64
+        transaction_id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [DEPOSIT, TRANSFER]
+        amount_minor:
+          $ref: '#/components/schemas/AmountMinor'
+        reference:
+          type: [string, 'null']
+        posted_at:
+          type: string
+          format: date-time
+    EntryPage:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Entry'
+        next_cursor:
+          type: [string, 'null']
+          description: Null on the last page.
+
     Problem:
       type: object
       description: RFC 9457 problem details.
@@ -123,5 +687,14 @@ components:
         instance:
           type: string
           format: uri-reference
-security:
-  - bearerAuth: []
+        errors:
+          type: array
+          description: Field-level validation failures (400 only).
+          items:
+            type: object
+            required: [field, message]
+            properties:
+              field:
+                type: string
+              message:
+                type: string

@@ -22,6 +22,11 @@ services:
       DATABASE_URL: jdbc:postgresql://postgres:5432/minibank
       DATABASE_USER: minibank
       DATABASE_PASSWORD: minibank
+      # Local-only synthetic credentials. Shared environments read these from SSM Parameter Store.
+      MINIBANK_OPS_CLIENT_ID: cli_ops_local
+      MINIBANK_OPS_CLIENT_SECRET: local-ops-secret
+      MINIBANK_SERVICE_CLIENT_ID: cli_service_local
+      MINIBANK_SERVICE_CLIENT_SECRET: local-service-secret
     ports:
       - "8080:8080"
     depends_on:

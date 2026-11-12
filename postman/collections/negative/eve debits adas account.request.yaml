@@ -1,0 +1,26 @@
+$kind: http-request
+name: "eve debits ada's account (404)"
+method: POST
+url: '{{base_url}}/v1/transfers'
+order: 11000
+headers:
+  - key: Content-Type
+    value: 'application/json'
+  - key: Idempotency-Key
+    value: '{{$guid}}'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{eve_token}}'
+body:
+  type: json
+  content: |-
+    {"source_account_id": "{{ada_account}}", "destination_account_id": "{{eve_account}}", "amount_minor": 100, "currency": "USD"}
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 404', () => pm.response.to.have.status(404));
+      pm.test('problem+json', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json'));
+      pm.test('type is not-found', () => pm.expect(pm.response.json().type).to.match(/\/not-found$/));

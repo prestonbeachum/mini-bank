@@ -1,0 +1,23 @@
+$kind: http-request
+name: 'missing Idempotency-Key (400)'
+method: POST
+url: '{{base_url}}/v1/transfers'
+order: 19000
+headers:
+  - key: Content-Type
+    value: 'application/json'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{ada_token}}'
+body:
+  type: json
+  content: |-
+    {"source_account_id": "{{ada_account}}", "destination_account_id": "{{eve_account}}", "amount_minor": 1, "currency": "USD"}
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 400', () => pm.response.to.have.status(400));
+      pm.test('problem+json', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json'));

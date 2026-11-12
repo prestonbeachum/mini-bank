@@ -1,8 +1,9 @@
 $kind: collection
 name: Mini Bank smoke
 description: |-
-  Runs after every deploy and in CI against Docker Compose (build doc section 12).
-  Phase 0 covers health only; token, deposit, transfer and balance join in phase 1.
-  base_url comes from the environment; never store secrets in this collection.
+  Runs after every deploy and in CI against Docker Compose (build doc section 12):
+  health, tokens, a customer with two accounts, one deposit, one transfer, one balance read.
+  Each run creates its own synthetic customer. Credentials come from the environment;
+  values set during the run are collection variables and are never saved back.
 auth:
   type: noauth

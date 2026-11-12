@@ -1,0 +1,28 @@
+$kind: http-request
+method: POST
+url: '{{base_url}}/v1/customers'
+order: 6000
+headers:
+  - key: Content-Type
+    value: 'application/json'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{ops_token}}'
+body:
+  type: json
+  content: |-
+    {"email": "{{eve_email}}", "name": "Negative Test"}
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      pm.collectionVariables.set('eve_email', `neg-eve-${pm.variables.replaceIn('{{$guid}}')}@example.test`);
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('eve created', () => pm.response.to.have.status(201));
+      const c = pm.response.json().credentials;
+      pm.collectionVariables.set('eve_client_id', c.client_id);
+      pm.collectionVariables.set('eve_client_secret', c.client_secret);

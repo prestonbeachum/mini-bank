@@ -1,0 +1,26 @@
+$kind: http-request
+name: 'zero amount and wrong currency (400)'
+method: POST
+url: '{{base_url}}/v1/transfers'
+order: 21000
+headers:
+  - key: Content-Type
+    value: 'application/json'
+  - key: Idempotency-Key
+    value: '{{$guid}}'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{ada_token}}'
+body:
+  type: json
+  content: |-
+    {"source_account_id": "{{ada_account}}", "destination_account_id": "{{eve_account}}", "amount_minor": 0, "currency": "EUR"}
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 400', () => pm.response.to.have.status(400));
+      const fields = pm.response.json().errors.map(e => e.field);
+      pm.test('names both fields', () => pm.expect(fields).to.include.members(['amount_minor', 'currency']));

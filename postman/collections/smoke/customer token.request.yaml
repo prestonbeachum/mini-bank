@@ -1,0 +1,17 @@
+$kind: http-request
+method: POST
+url: '{{base_url}}/v1/auth/token'
+order: 5000
+headers:
+  - key: Content-Type
+    value: 'application/json'
+body:
+  type: json
+  content: |-
+    {"client_id": "{{customer_client_id}}", "client_secret": "{{customer_client_secret}}"}
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('customer token issued', () => pm.response.to.have.status(200));
+      pm.collectionVariables.set('customer_token', pm.response.json().access_token);

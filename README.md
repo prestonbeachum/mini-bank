@@ -4,12 +4,12 @@ A synthetic core-banking backend: accounts, an immutable double-entry ledger, tr
 
 ## Status
 
-**Phase 0: toolchain and skeleton.** `docker compose up` serves `/health`, and the Postman smoke collection passes. Next is phase 1, the ledger core (schema, deposits, transfers, idempotency, property tests).
+**Phase 1: ledger core.** Customers, accounts, deposits, transfers with `Idempotency-Key`, balances and keyset-paginated history, behind RS256 JWT auth with customer, ops and service roles. A property test drives random sequences of deposits, transfers and key replays against an in-memory model and checks ledger invariants 1 to 10 after every run. Next is phase 2, CI and packaging.
 
 | Phase | What | Where |
 |---|---|---|
 | 0 | Toolchain and skeleton | local ✅ |
-| 1 | Ledger core | local |
+| 1 | Ledger core | local ✅ |
 | 2 | CI and packaging | local |
 | 3 | Environments and deploy | AWS (free-plan clock starts) |
 | 4 | Observability and Sentry | AWS |
@@ -35,11 +35,23 @@ Run the tests (Testcontainers starts its own Postgres):
 cd app && ./mvnw verify
 ```
 
-Run the smoke collection with the [Postman CLI](https://learning.postman.com/docs/postman-cli/postman-cli-overview/):
+Run the collections with the [Postman CLI](https://learning.postman.com/docs/postman-cli/postman-cli-overview/):
 
 ```sh
-postman collection run postman/collections/smoke -e postman/environments/local.environment.yaml
+postman collection run postman/collections/smoke    -e postman/environments/local.environment.yaml
+postman collection run postman/collections/negative -e postman/environments/local.environment.yaml
 ```
+
+Try it by hand (local-only credentials from `docker-compose.yml`):
+
+```sh
+OPS=$(curl -s localhost:8080/v1/auth/token -H 'Content-Type: application/json' \
+  -d '{"client_id":"cli_ops_local","client_secret":"local-ops-secret"}' | jq -r .access_token)
+curl -s localhost:8080/v1/customers -H "Authorization: Bearer $OPS" -H 'Content-Type: application/json' \
+  -d '{"email":"ada@example.test","name":"Ada Example"}' | jq
+```
+
+The response includes the new customer's `client_id` and `client_secret`, shown once. Exchange them at `/v1/auth/token` for a customer token, then `POST /v1/accounts`. Deposits need the service client (`cli_service_local` / `local-service-secret`).
 
 ## Layout
 
@@ -55,6 +67,15 @@ docs/runbooks/      one per alert
 .github/workflows/  ci
 docker-compose.yml  app + Postgres
 ```
+
+## Tests
+
+| Test | What it proves |
+|---|---|
+| `LedgerInvariantPropertyTests` | 100 random sequences (deposits, transfers by owner / non-owner / service, same-body and different-body key replays) match an in-memory model; invariants 1–10 hold after each |
+| `LedgerConcurrencyTests` | 400 opposite-direction transfers on 16 threads never deadlock; 100 parallel debits against funds for 10 let exactly 10 through; 50 parallel replays of one key post once |
+| `SchemaConstraintTests` | The database alone rejects unbalanced or mixed-currency transactions, posting updates/deletes/truncates, overdrafts past the limit, and double reversals |
+| `ApiFlowTests` | The HTTP contract: auth, role gates, 404 for foreign ids, problem+json errors, replay headers, pagination |
 
 ## Ground rules
 
