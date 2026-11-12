@@ -1,0 +1,3 @@
+# Build context for Dockerfile.release: only the prebuilt JAR.
+*
+!dist/docker/mini-bank.jar
