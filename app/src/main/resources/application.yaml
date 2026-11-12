@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: mini-bank
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5433/minibank}
+    username: ${DATABASE_USER:minibank}
+    password: ${DATABASE_PASSWORD:minibank}
+    hikari:
+      # Lambda later: 1-2 connections per instance through Neon's pooler (doc section 7).
+      maximum-pool-size: ${DB_POOL_SIZE:5}
+  flyway:
+    locations: classpath:db/migration
+
+server:
+  port: ${PORT:8080}
+
+management:
+  endpoints:
+    web:
+      base-path: /
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-components: always

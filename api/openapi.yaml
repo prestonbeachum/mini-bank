@@ -1,0 +1,127 @@
+openapi: 3.1.0
+info:
+  title: Mini Bank API
+  version: 0.1.0
+  summary: Synthetic core-banking backend. All money and customers are fake.
+  description: |
+    Spec-first contract for Mini Bank. Phase 0 defines only the health endpoint and the
+    shared conventions; ledger endpoints (build doc section 6) are added in phase 1
+    before they are implemented.
+
+    Conventions:
+    - Paths are prefixed with `/v1` (operational endpoints such as `/health` are not).
+    - Money is an integer amount in minor units plus an ISO 4217 currency.
+    - Errors are RFC 9457 `application/problem+json`.
+    - Lists use keyset cursors, never offsets.
+    - Every money-moving POST requires an `Idempotency-Key` header.
+  license:
+    name: MIT
+    identifier: MIT
+servers:
+  - url: http://localhost:8080
+    description: Local Docker Compose
+tags:
+  - name: operations
+    description: Liveness and dependency health
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Service health
+      description: Reports UP only when the service and its database are reachable.
+      tags: [operations]
+      security: []
+      responses:
+        '200':
+          description: The service and all checked components are up.
+          content:
+            application/vnd.spring-boot.actuator.v3+json:
+              schema:
+                $ref: '#/components/schemas/Health'
+              example:
+                status: UP
+                components:
+                  db:
+                    status: UP
+                  diskSpace:
+                    status: UP
+                  ping:
+                    status: UP
+        '503':
+          description: At least one checked component is down.
+          content:
+            application/vnd.spring-boot.actuator.v3+json:
+              schema:
+                $ref: '#/components/schemas/Health'
+              example:
+                status: DOWN
+                components:
+                  db:
+                    status: DOWN
+                  ping:
+                    status: UP
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Short-lived (15 min) JWT from POST /v1/auth/token (phase 1).
+  schemas:
+    HealthStatus:
+      type: string
+      enum: [UP, DOWN, OUT_OF_SERVICE, UNKNOWN]
+    Health:
+      type: object
+      required: [status]
+      properties:
+        status:
+          $ref: '#/components/schemas/HealthStatus'
+        groups:
+          type: array
+          description: Named health groups (for example liveness, readiness).
+          items:
+            type: string
+        components:
+          type: object
+          additionalProperties:
+            type: object
+            required: [status]
+            properties:
+              status:
+                $ref: '#/components/schemas/HealthStatus'
+    Money:
+      type: object
+      description: An amount in minor units (cents for USD). Never a floating-point number.
+      required: [amount_minor, currency]
+      properties:
+        amount_minor:
+          type: integer
+          format: int64
+          examples: [12500]
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          examples: [USD]
+    Problem:
+      type: object
+      description: RFC 9457 problem details.
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          examples: ['https://minibank.dev/problems/insufficient-funds']
+        title:
+          type: string
+          examples: [Insufficient funds]
+        status:
+          type: integer
+          examples: [422]
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
+security:
+  - bearerAuth: []

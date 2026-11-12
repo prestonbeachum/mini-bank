@@ -1,0 +1,7 @@
+name: local
+values:
+  - key: base_url
+    value: 'http://localhost:8080'
+    enabled: true
+    type: default
+    description: Docker Compose app container

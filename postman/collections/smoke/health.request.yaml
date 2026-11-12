@@ -1,0 +1,18 @@
+$kind: http-request
+method: GET
+url: '{{base_url}}/health'
+order: 1000
+examples: './.resources/health.resources/examples/'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 200', () => pm.response.to.have.status(200));
+
+      const body = pm.response.json();
+      pm.test('service reports UP', () => pm.expect(body.status).to.eql('UP'));
+      pm.test('database component is UP', () => {
+        pm.expect(body.components, 'components').to.have.property('db');
+        pm.expect(body.components.db.status).to.eql('UP');
+      });
+      pm.test('responds within 2 s', () => pm.expect(pm.response.responseTime).to.be.below(2000));

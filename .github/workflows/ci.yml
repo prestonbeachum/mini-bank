@@ -1,0 +1,71 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Unit and integration tests (Testcontainers Postgres)
+        working-directory: app
+        run: ./mvnw -B verify
+
+  api-contract:
+    name: Spec lint and smoke against Docker Compose
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Postman CLI
+        run: curl -fsSL https://dl-cli.pstmn.io/install/linux64.sh | sh
+      - name: Lint OpenAPI spec
+        run: postman spec lint api/openapi.yaml --issueType=syntax
+      - name: Lint Postman collections and environments
+        run: |
+          postman collection lint postman/collections/smoke
+          postman environment lint postman/environments
+      - name: Start stack
+        run: docker compose up -d --build
+      - name: Wait for /health
+        run: |
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:8080/health && exit 0
+            sleep 2
+          done
+          docker compose logs app
+          exit 1
+      - name: Smoke collection
+        run: postman collection run postman/collections/smoke -e postman/environments/local.environment.yaml
+      - name: Stack logs on failure
+        if: failure()
+        run: docker compose logs
+
+  secrets-scan:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
