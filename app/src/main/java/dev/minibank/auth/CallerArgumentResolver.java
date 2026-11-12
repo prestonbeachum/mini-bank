@@ -1,7 +1,6 @@
 package dev.minibank.auth;
 
 import java.util.List;
-
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.MethodParameter;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -16,23 +15,25 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration(proxyBeanMethods = false)
 class CallerArgumentResolver implements HandlerMethodArgumentResolver, WebMvcConfigurer {
 
-	@Override
-	public boolean supportsParameter(MethodParameter parameter) {
-		return parameter.getParameterType() == Caller.class;
-	}
+    @Override
+    public boolean supportsParameter(MethodParameter parameter) {
+        return parameter.getParameterType() == Caller.class;
+    }
 
-	@Override
-	public Object resolveArgument(MethodParameter parameter, ModelAndViewContainer mav, NativeWebRequest request,
-			WebDataBinderFactory binderFactory) {
-		if (SecurityContextHolder.getContext().getAuthentication() instanceof JwtAuthenticationToken token) {
-			return Caller.from(token.getToken());
-		}
-		throw new IllegalStateException("No authenticated caller on a route that requires one");
-	}
+    @Override
+    public Object resolveArgument(
+            MethodParameter parameter,
+            ModelAndViewContainer mav,
+            NativeWebRequest request,
+            WebDataBinderFactory binderFactory) {
+        if (SecurityContextHolder.getContext().getAuthentication() instanceof JwtAuthenticationToken token) {
+            return Caller.from(token.getToken());
+        }
+        throw new IllegalStateException("No authenticated caller on a route that requires one");
+    }
 
-	@Override
-	public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
-		resolvers.add(this);
-	}
-
+    @Override
+    public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
+        resolvers.add(this);
+    }
 }

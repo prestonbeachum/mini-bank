@@ -3,8 +3,9 @@ spring:
     name: mini-bank
   datasource:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5433/minibank}
-    username: ${DATABASE_USER:minibank}
-    password: ${DATABASE_PASSWORD:minibank}
+    # The app's login: a member of ledger_app (V003), which cannot UPDATE or DELETE postings.
+    username: ${DATABASE_USER:minibank_app}
+    password: ${DATABASE_PASSWORD:minibank_app}
     hikari:
       # Lambda later: 1-2 connections per instance through Neon's pooler (doc section 7).
       maximum-pool-size: ${DB_POOL_SIZE:10}
@@ -12,11 +13,21 @@ spring:
       connection-init-sql: SET statement_timeout = '2s'
   flyway:
     locations: classpath:db/migration
+    # Migrations run as the schema owner; the app never holds DDL rights.
+    user: ${FLYWAY_USER:minibank}
+    password: ${FLYWAY_PASSWORD:minibank}
+  servlet:
+    multipart:
+      # The API never accepts multipart. Left on, any request claiming multipart/form-data
+      # without a boundary is parsed eagerly and fails with a 500.
+      enabled: false
   jackson:
     property-naming-strategy: SNAKE_CASE
     deserialization:
       # 10.5 cents must be a 400, never silently truncated to 10.
       accept-float-as-int: false
+      # Strict request bodies (api/openapi.yaml: additionalProperties false).
+      fail-on-unknown-properties: true
 
 server:
   port: ${PORT:8080}

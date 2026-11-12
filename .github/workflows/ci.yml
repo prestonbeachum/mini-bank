@@ -1,5 +1,6 @@
 name: ci
 
+# Every PR and every push to main (build doc section 11). Target: all checks green in under 10 minutes.
 on:
   pull_request:
   push:
@@ -24,16 +25,32 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
-      - name: Unit and integration tests (Testcontainers Postgres)
+      - name: Formatting (Spotless)
+        working-directory: app
+        run: ./mvnw -B -q spotless:check
+      - name: Unit, property, concurrency and integration tests (Testcontainers Postgres)
         working-directory: app
         run: ./mvnw -B verify
+      # Runs after the build so Trivy resolves dependencies from the warm ~/.m2, not Maven Central.
+      - name: Dependency and Dockerfile scan (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.76.1
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig,secret
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          skip-dirs: app/target,postman/skills
+          exit-code: '1'
 
   api-contract:
-    name: Spec lint and smoke against Docker Compose
+    name: API contract
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
       - name: Install Postman CLI
         run: curl -fsSL https://dl-cli.pstmn.io/install/linux64.sh | sh
       - name: Lint OpenAPI spec
@@ -56,6 +73,8 @@ jobs:
         run: postman collection run postman/collections/smoke -e postman/environments/local.environment.yaml
       - name: Negative collection
         run: postman collection run postman/collections/negative -e postman/environments/local.environment.yaml
+      - name: Contract fuzzing (Schemathesis, every role)
+        run: scripts/fuzz.sh
       - name: Stack logs on failure
         if: failure()
         run: docker compose logs

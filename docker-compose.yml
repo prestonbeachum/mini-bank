@@ -15,13 +15,17 @@ services:
       retries: 30
     volumes:
       - pgdata:/var/lib/postgresql/data
+      # Runs only when the volume is first created. After changing it: docker compose down -v
+      - ./db/local/roles.sql:/docker-entrypoint-initdb.d/10-roles.sql:ro
 
   app:
     build: .
     environment:
       DATABASE_URL: jdbc:postgresql://postgres:5432/minibank
-      DATABASE_USER: minibank
-      DATABASE_PASSWORD: minibank
+      DATABASE_USER: minibank_app
+      DATABASE_PASSWORD: minibank_app
+      FLYWAY_USER: minibank
+      FLYWAY_PASSWORD: minibank
       # Local-only synthetic credentials. Shared environments read these from SSM Parameter Store.
       MINIBANK_OPS_CLIENT_ID: cli_ops_local
       MINIBANK_OPS_CLIENT_SECRET: local-ops-secret

@@ -1,0 +1,14 @@
+# Fast local loop (build doc section 14): `pre-commit install` once, then this runs on every commit.
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+  - repo: local
+    hooks:
+      - id: spotless
+        name: spotless (palantir-java-format)
+        entry: bash -c 'cd app && ./mvnw -q -B spotless:apply'
+        language: system
+        files: \.java$
+        pass_filenames: false

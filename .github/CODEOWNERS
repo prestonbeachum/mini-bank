@@ -1,0 +1,5 @@
+# Every path needs a review from the owner. Migrations and workflows are called out so the
+# PR template's "migration reviewed" and supply-chain checks have an owner on record.
+*                    @prestonbeachum
+/db/migrations/      @prestonbeachum
+/.github/workflows/  @prestonbeachum

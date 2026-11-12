@@ -40,3 +40,6 @@ build/
 .terraform/
 .postman/resources.yaml
 .jqwik-database
+dist/
+fuzz-report/
+.schemathesis/
