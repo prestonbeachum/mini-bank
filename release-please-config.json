@@ -5,11 +5,15 @@
     ".": {
       "release-type": "simple",
       "package-name": "mini-bank",
+      "initial-version": "0.1.0",
       "changelog-path": "CHANGELOG.md",
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": false,
       "extra-files": [
-        { "type": "generic", "path": "app/pom.xml" }
+        {
+          "type": "generic",
+          "path": "app/pom.xml"
+        }
       ]
     }
   }
