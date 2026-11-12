@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>dev.minibank</groupId>
 	<artifactId>mini-bank</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+	<version>0.0.0</version><!-- x-release-please-version -->
 	<name>mini-bank</name>
 	<description>Synthetic core-banking backend for practising backend and cloud tooling</description>
 	<url/>
@@ -30,6 +30,8 @@
 		<java.version>21</java.version>
 		<uuid-creator.version>6.1.1</uuid-creator.version>
 		<jqwik.version>1.10.2</jqwik.version>
+		<spotless.version>3.10.4</spotless.version>
+		<palantir-java-format.version>2.100.0</palantir-java-format.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -140,10 +142,35 @@
 				<targetPath>db/migration</targetPath>
 			</resource>
 		</resources>
+		<testResources>
+			<testResource>
+				<directory>src/test/resources</directory>
+			</testResource>
+			<!-- The local login role script, shared with docker-compose.yml. -->
+			<testResource>
+				<directory>${project.basedir}/../db/local</directory>
+				<targetPath>db/local</targetPath>
+			</testResource>
+		</testResources>
 		<plugins>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
+			</plugin>
+			<!-- Formatting is a CI gate (spotless:check); run ./mvnw spotless:apply before committing. -->
+			<plugin>
+				<groupId>com.diffplug.spotless</groupId>
+				<artifactId>spotless-maven-plugin</artifactId>
+				<version>${spotless.version}</version>
+				<configuration>
+					<java>
+						<palantirJavaFormat>
+							<version>${palantir-java-format.version}</version>
+						</palantirJavaFormat>
+						<removeUnusedImports/>
+						<importOrder/>
+					</java>
+				</configuration>
 			</plugin>
 		</plugins>
 	</build>

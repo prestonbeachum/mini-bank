@@ -1,0 +1,7 @@
+# Schemathesis configuration for scripts/fuzz.sh (build doc section 12).
+
+# The history cursor is opaque: the spec can only constrain its shape, so a well-formed
+# string the server never issued is correctly rejected with 400. Every other check still runs.
+[[operations]]
+include-operation-id = "listAccountEntries"
+checks.positive_data_acceptance.enabled = false

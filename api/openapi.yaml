@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Mini Bank API
-  version: 0.2.0
+  version: 0.3.0
   summary: Synthetic core-banking backend. All money and customers are fake.
   description: |
     Spec-first contract for Mini Bank. This version covers the Core tier (build doc
@@ -16,6 +16,10 @@ info:
     - Lists use keyset cursors, never offsets.
     - Every money-moving POST requires an `Idempotency-Key` header.
     - A resource the caller may not see returns 404, never 403, so ids cannot be probed.
+      403 means the caller's role may not call the operation at all.
+    - Request bodies are strict: unknown fields are rejected with 400, so a typo such as
+      `amount` for `amount_minor` can never be silently ignored.
+    - An undeclared HTTP method returns 405.
 
     Idempotency: a key is scoped to the caller (JWT subject) and binds the first
     *successful* response for 24 hours. Replaying the key with the same body returns
@@ -171,10 +175,8 @@ paths:
   /v1/accounts:
     post:
       operationId: openAccount
-      summary: Open a checking or savings account
-      description: |
-        A customer opens an account for themselves (`customer_id` must be omitted or
-        equal their own id). Ops must pass `customer_id`.
+      summary: Open a checking or savings account for yourself
+      description: Requires the `customer` role. Ops opens accounts with `POST /v1/customers/{customerId}/accounts`.
       tags: [accounts]
       requestBody:
         required: true
@@ -184,6 +186,45 @@ paths:
               $ref: '#/components/schemas/OpenAccountRequest'
             example:
               kind: CHECKING
+      responses:
+        '201':
+          description: Account opened.
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /v1/customers/{customerId}/accounts:
+    parameters:
+      - name: customerId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: openAccountForCustomer
+      summary: Open an account on behalf of a customer
+      description: Requires the `ops` role.
+      tags: [accounts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpenAccountRequest'
+            example:
+              kind: SAVINGS
       responses:
         '201':
           description: Account opened.
@@ -218,8 +259,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Account'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -233,9 +278,14 @@ paths:
       parameters:
         - name: cursor
           in: query
-          description: Opaque cursor from a previous page's `next_cursor`.
+          description: |
+            Opaque cursor from a previous page's `next_cursor`. A value the server did not
+            issue is rejected with 400.
           schema:
             type: string
+            minLength: 1
+            maxLength: 200
+            pattern: '^[A-Za-z0-9_-]+$'
         - name: limit
           in: query
           schema:
@@ -254,6 +304,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -443,16 +495,16 @@ components:
 
     TokenRequest:
       type: object
+      additionalProperties: false
       required: [client_id, client_secret]
       properties:
         client_id:
           type: string
-          minLength: 1
-          maxLength: 64
+          pattern: '^[A-Za-z0-9_-]{1,64}$'
         client_secret:
           type: string
-          minLength: 1
-          maxLength: 256
+          description: Printable ASCII, no spaces.
+          pattern: '^[\x21-\x7E]{1,256}$'
     TokenResponse:
       type: object
       required: [access_token, token_type, expires_in]
@@ -469,6 +521,7 @@ components:
 
     CreateCustomerRequest:
       type: object
+      additionalProperties: false
       required: [email, name]
       properties:
         email:
@@ -479,6 +532,8 @@ components:
           type: string
           minLength: 1
           maxLength: 200
+          description: Must contain at least one non-whitespace character.
+          pattern: '[^\x09-\x0D\x20]'
     Customer:
       type: object
       required: [id, email, name, status, created_at]
@@ -515,17 +570,17 @@ components:
 
     OpenAccountRequest:
       type: object
+      additionalProperties: false
       required: [kind]
       properties:
         kind:
           type: string
           enum: [CHECKING, SAVINGS]
-        customer_id:
-          type: string
-          format: uuid
-          description: Required for ops; for a customer, omitted or their own id.
         currency:
-          $ref: '#/components/schemas/Currency'
+          description: Optional; omitted or null means USD.
+          oneOf:
+            - $ref: '#/components/schemas/Currency'
+            - type: 'null'
     Account:
       type: object
       required: [id, customer_id, kind, currency, status, balance_minor, holds_minor,
@@ -561,6 +616,7 @@ components:
 
     DepositRequest:
       type: object
+      additionalProperties: false
       required: [account_id, amount_minor, currency]
       properties:
         account_id:
@@ -569,15 +625,18 @@ components:
         amount_minor:
           type: integer
           format: int64
+          description: Whole minor units. 233.0 is accepted as 233; 10.5 is rejected.
           minimum: 1
           maximum: 100000000
         currency:
           $ref: '#/components/schemas/Currency'
         reference:
-          type: string
+          type: [string, 'null']
+          description: Optional free text; omitted or null means none.
           maxLength: 140
     TransferRequest:
       type: object
+      additionalProperties: false
       required: [source_account_id, destination_account_id, amount_minor, currency]
       properties:
         source_account_id:
@@ -589,12 +648,14 @@ components:
         amount_minor:
           type: integer
           format: int64
+          description: Whole minor units. 233.0 is accepted as 233; 10.5 is rejected.
           minimum: 1
           maximum: 100000000
         currency:
           $ref: '#/components/schemas/Currency'
         reference:
-          type: string
+          type: [string, 'null']
+          description: Optional free text; omitted or null means none.
           maxLength: 140
 
     Posting:
