@@ -37,6 +37,9 @@ class SecurityConfig {
         AccessDeniedHandler forbidden = (request, response, ex) ->
                 writeProblem(response, 403, "forbidden", "Forbidden", "This role may not call this operation");
 
+        // CSRF protection defends cookie/session credentials a browser attaches on its own. This API
+        // has none: it is stateless and every caller sends a bearer token in the Authorization
+        // header, which a cross-site page cannot make the browser add. (CodeQL alert dismissed.)
         http.csrf(csrf -> csrf.disable())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(

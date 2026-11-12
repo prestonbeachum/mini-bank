@@ -67,8 +67,14 @@ public class AccountService {
         return account;
     }
 
+    public static final int MAX_PAGE_SIZE = 100;
+
     /** Keyset pagination on (created_at DESC, id DESC); never OFFSET. */
     public EntryPage history(Caller caller, UUID accountId, String cursor, int limit) {
+        // The controller validates this too; the service does not trust its callers to.
+        if (limit < 1 || limit > MAX_PAGE_SIZE) {
+            throw new IllegalArgumentException("limit must be 1.." + MAX_PAGE_SIZE);
+        }
         get(caller, accountId);
         Cursor after = cursor == null ? null : Cursor.decode(cursor);
         List<Entry> rows = jdbc.sql("""

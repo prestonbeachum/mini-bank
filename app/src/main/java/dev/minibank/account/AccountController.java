@@ -84,7 +84,7 @@ class AccountController {
             Caller caller,
             @PathVariable UUID accountId,
             @RequestParam(required = false) String cursor,
-            @RequestParam(defaultValue = "25") @Min(1) @Max(100) int limit) {
+            @RequestParam(defaultValue = "25") @Min(1) @Max(AccountService.MAX_PAGE_SIZE) int limit) {
         return accounts.history(caller, accountId, cursor, limit);
     }
 }
