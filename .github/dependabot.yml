@@ -9,3 +9,7 @@ updates:
   - package-ecosystem: docker
     directory: /
     schedule: { interval: weekly }
+    ignore:
+      # Stay on the Java 21 LTS line; a Java major bump is a deliberate ADR, not a bot PR.
+      - dependency-name: eclipse-temurin
+        update-types: [version-update:semver-major]
