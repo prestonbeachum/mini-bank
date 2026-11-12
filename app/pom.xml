@@ -157,6 +157,12 @@
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
+			<!-- The parent only manages this plugin; declaring it (no version) runs Boot's configuration,
+			     which writes META-INF/sbom/application.cdx.json into the JAR. -->
+			<plugin>
+				<groupId>org.cyclonedx</groupId>
+				<artifactId>cyclonedx-maven-plugin</artifactId>
+			</plugin>
 			<!-- Formatting is a CI gate (spotless:check); run ./mvnw spotless:apply before committing. -->
 			<plugin>
 				<groupId>com.diffplug.spotless</groupId>
