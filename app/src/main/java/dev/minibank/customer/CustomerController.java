@@ -23,8 +23,11 @@ class CustomerController {
             @NotNull @Pattern(regexp = NOT_BLANK) @MaxCodePoints(200)
             String name) {}
 
-    /** Contains at least one non-whitespace character; the same class as the spec's pattern. */
-    static final String NOT_BLANK = "(?s).*[^\\x09-\\x0D\\x20].*";
+    /**
+     * At least one non-whitespace character and no NUL (Postgres text cannot store U+0000);
+     * the same expression as the spec's pattern.
+     */
+    static final String NOT_BLANK = "(?=[\\s\\S]*[^\\x09-\\x0D\\x20])[^\\x00]*";
 
     record CreatedCustomerResponse(
             UUID id,

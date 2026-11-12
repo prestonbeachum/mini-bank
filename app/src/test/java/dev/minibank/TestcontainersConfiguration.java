@@ -1,8 +1,9 @@
 package dev.minibank;
 
+import org.springframework.boot.flyway.autoconfigure.FlywayConnectionDetails;
+import org.springframework.boot.jdbc.autoconfigure.JdbcConnectionDetails;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
-import org.springframework.test.context.DynamicPropertyRegistrar;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
@@ -22,14 +23,46 @@ class TestcontainersConfiguration {
                 .withInitScript("db/local/roles.sql");
     }
 
+    // Connection details, not DynamicPropertyRegistrar: in a web test context Tomcat's filters
+    // pull in the DataSource during onRefresh, before a registrar has run, so the pool was built
+    // from application.yaml's default (localhost:5433). A bean dependency has no such ordering gap.
     @Bean
-    DynamicPropertyRegistrar databaseProperties(PostgreSQLContainer postgres) {
-        return registry -> {
-            registry.add("spring.datasource.url", postgres::getJdbcUrl);
-            registry.add("spring.datasource.username", () -> "minibank_app");
-            registry.add("spring.datasource.password", () -> "minibank_app");
-            registry.add("spring.flyway.user", postgres::getUsername);
-            registry.add("spring.flyway.password", postgres::getPassword);
+    JdbcConnectionDetails appConnection(PostgreSQLContainer postgres) {
+        return new JdbcConnectionDetails() {
+            @Override
+            public String getJdbcUrl() {
+                return postgres.getJdbcUrl();
+            }
+
+            @Override
+            public String getUsername() {
+                return "minibank_app";
+            }
+
+            @Override
+            public String getPassword() {
+                return "minibank_app";
+            }
+        };
+    }
+
+    @Bean
+    FlywayConnectionDetails migrationConnection(PostgreSQLContainer postgres) {
+        return new FlywayConnectionDetails() {
+            @Override
+            public String getJdbcUrl() {
+                return postgres.getJdbcUrl();
+            }
+
+            @Override
+            public String getUsername() {
+                return postgres.getUsername();
+            }
+
+            @Override
+            public String getPassword() {
+                return postgres.getPassword();
+            }
         };
     }
 }

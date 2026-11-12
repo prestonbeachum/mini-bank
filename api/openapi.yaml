@@ -532,8 +532,8 @@ components:
           type: string
           minLength: 1
           maxLength: 200
-          description: Must contain at least one non-whitespace character.
-          pattern: '[^\x09-\x0D\x20]'
+          description: At least one non-whitespace character; no NUL (U+0000).
+          pattern: '^(?=[\s\S]*[^\x09-\x0D\x20])[^\x00]*$'
     Customer:
       type: object
       required: [id, email, name, status, created_at]
@@ -632,8 +632,9 @@ components:
           $ref: '#/components/schemas/Currency'
         reference:
           type: [string, 'null']
-          description: Optional free text; omitted or null means none.
+          description: Optional free text; omitted or null means none. No NUL (U+0000).
           maxLength: 140
+          pattern: '^[^\x00]*$'
     TransferRequest:
       type: object
       additionalProperties: false
@@ -655,8 +656,9 @@ components:
           $ref: '#/components/schemas/Currency'
         reference:
           type: [string, 'null']
-          description: Optional free text; omitted or null means none.
+          description: Optional free text; omitted or null means none. No NUL (U+0000).
           maxLength: 140
+          pattern: '^[^\x00]*$'
 
     Posting:
       type: object

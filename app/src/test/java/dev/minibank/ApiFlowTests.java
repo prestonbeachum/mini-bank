@@ -259,6 +259,11 @@ class ApiFlowTests {
         assertThat(nullCurrency.statusCode()).isEqualTo(201);
         assertThat(JSON.readTree(nullCurrency.body()).get("currency").asString())
                 .isEqualTo("USD");
+        // Postgres text cannot hold U+0000; it is a 400, never a failed insert and a 500.
+        assertProblem(
+                send("POST", "/v1/customers", ops, null, "{\"email\":\"nul@example.test\",\"name\":\"A\\u0000B\"}"),
+                400,
+                "validation");
         // Required strings may not be empty.
         assertProblem(send("POST", "/v1/customers", ops, null, "{\"email\":\"\",\"name\":\"Ada\"}"), 400, "validation");
 

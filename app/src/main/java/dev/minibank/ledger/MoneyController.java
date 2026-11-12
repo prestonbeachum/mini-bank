@@ -33,7 +33,8 @@ class MoneyController {
 
             @NotNull @Pattern(regexp = "USD") String currency,
 
-            @MaxCodePoints(140) String reference) {}
+            @MaxCodePoints(140) @Pattern(regexp = "[^\\x00]*")
+            String reference) {}
 
     record TransferRequest(
             @NotNull UUID sourceAccountId,
@@ -44,7 +45,8 @@ class MoneyController {
 
             @NotNull @Pattern(regexp = "USD") String currency,
 
-            @MaxCodePoints(140) String reference) {}
+            @MaxCodePoints(140) @Pattern(regexp = "[^\\x00]*")
+            String reference) {}
 
     private final LedgerService ledger;
 
