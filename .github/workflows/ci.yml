@@ -31,6 +31,8 @@ jobs:
       - name: Unit, property, concurrency and integration tests (Testcontainers Postgres)
         working-directory: app
         run: ./mvnw -B verify
+      - name: SBOM is in the build
+        run: test -s app/target/classes/META-INF/sbom/application.cdx.json
       # Runs after the build so Trivy resolves dependencies from the warm ~/.m2, not Maven Central.
       - name: Dependency and Dockerfile scan (Trivy)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
