@@ -1,0 +1,17 @@
+$kind: http-request
+method: GET
+url: '{{base_url}}/v1/accounts/{{checking_id}}'
+order: 10000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{customer_token}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 200', () => pm.response.to.have.status(200));
+      const a = pm.response.json();
+      pm.test('balance is deposit minus transfer', () => pm.expect(a.balance_minor).to.eql(7500));
+      pm.test('available equals balance with no holds', () => pm.expect(a.available_minor).to.eql(7500));

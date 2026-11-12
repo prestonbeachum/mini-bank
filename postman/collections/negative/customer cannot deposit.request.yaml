@@ -1,0 +1,26 @@
+$kind: http-request
+name: 'customer cannot deposit (403)'
+method: POST
+url: '{{base_url}}/v1/deposits'
+order: 18000
+headers:
+  - key: Content-Type
+    value: 'application/json'
+  - key: Idempotency-Key
+    value: '{{$guid}}'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{ada_token}}'
+body:
+  type: json
+  content: |-
+    {"account_id": "{{ada_account}}", "amount_minor": 100, "currency": "USD"}
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 403', () => pm.response.to.have.status(403));
+      pm.test('problem+json', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json'));
+      pm.test('type is forbidden', () => pm.expect(pm.response.json().type).to.match(/\/forbidden$/));

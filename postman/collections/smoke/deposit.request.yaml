@@ -1,0 +1,29 @@
+$kind: http-request
+method: POST
+url: '{{base_url}}/v1/deposits'
+order: 8000
+headers:
+  - key: Content-Type
+    value: 'application/json'
+  - key: Idempotency-Key
+    value: '{{$guid}}'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{service_token}}'
+body:
+  type: json
+  content: |-
+    {"account_id": "{{checking_id}}", "amount_minor": 10000, "currency": "USD", "reference": "smoke deposit"}
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('deposit posted', () => pm.response.to.have.status(201));
+      const t = pm.response.json();
+      pm.test('postings balance to zero', () => pm.expect(t.postings.reduce((s, p) => s + p.amount_minor, 0)).to.eql(0));
+      pm.test('credits the checking account', () => {
+        const credit = t.postings.find(p => p.account_id === pm.collectionVariables.get('checking_id'));
+        pm.expect(credit.amount_minor).to.eql(10000);
+      });

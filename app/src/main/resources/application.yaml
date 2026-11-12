@@ -7,9 +7,16 @@ spring:
     password: ${DATABASE_PASSWORD:minibank}
     hikari:
       # Lambda later: 1-2 connections per instance through Neon's pooler (doc section 7).
-      maximum-pool-size: ${DB_POOL_SIZE:5}
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+      # API requests never hold the database for more than 2 s (doc section 7).
+      connection-init-sql: SET statement_timeout = '2s'
   flyway:
     locations: classpath:db/migration
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+    deserialization:
+      # 10.5 cents must be a 400, never silently truncated to 10.
+      accept-float-as-int: false
 
 server:
   port: ${PORT:8080}
@@ -23,3 +30,18 @@ management:
   endpoint:
     health:
       show-components: always
+
+minibank:
+  auth:
+    issuer: mini-bank
+    token-ttl: 15m
+    # PKCS#8 PEM. Blank = ephemeral key generated at startup (local only).
+    jwt-private-key: ${MINIBANK_JWT_PRIVATE_KEY:}
+    # A client with a blank secret is skipped, so nothing is provisioned unless the environment says so.
+    bootstrap-clients:
+      - client-id: ${MINIBANK_OPS_CLIENT_ID:cli_ops}
+        secret: ${MINIBANK_OPS_CLIENT_SECRET:}
+        role: ops
+      - client-id: ${MINIBANK_SERVICE_CLIENT_ID:cli_service}
+        secret: ${MINIBANK_SERVICE_CLIENT_SECRET:}
+        role: service

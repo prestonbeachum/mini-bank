@@ -1,0 +1,25 @@
+$kind: http-request
+method: POST
+url: '{{base_url}}/v1/accounts'
+order: 6000
+headers:
+  - key: Content-Type
+    value: 'application/json'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{customer_token}}'
+body:
+  type: json
+  content: |-
+    {"kind": "CHECKING"}
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('account opened', () => pm.response.to.have.status(201));
+      const a = pm.response.json();
+      pm.test('starts empty', () => pm.expect(a.balance_minor).to.eql(0));
+      pm.test('owned by the customer', () => pm.expect(a.customer_id).to.eql(pm.collectionVariables.get('customer_id')));
+      pm.collectionVariables.set('checking_id', a.id);

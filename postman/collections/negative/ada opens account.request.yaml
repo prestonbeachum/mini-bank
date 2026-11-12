@@ -1,0 +1,22 @@
+$kind: http-request
+method: POST
+url: '{{base_url}}/v1/accounts'
+order: 5000
+headers:
+  - key: Content-Type
+    value: 'application/json'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{ada_token}}'
+body:
+  type: json
+  content: |-
+    {"kind": "CHECKING"}
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('account opened', () => pm.response.to.have.status(201));
+      pm.collectionVariables.set('ada_account', pm.response.json().id);

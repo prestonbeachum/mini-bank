@@ -1,0 +1,17 @@
+$kind: http-request
+name: "eve reads ada's account (404, not 403)"
+method: GET
+url: '{{base_url}}/v1/accounts/{{ada_account}}'
+order: 10000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{eve_token}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 404', () => pm.response.to.have.status(404));
+      pm.test('problem+json', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json'));
+      pm.test('type is not-found', () => pm.expect(pm.response.json().type).to.match(/\/not-found$/));

@@ -40,7 +40,7 @@ jobs:
         run: postman spec lint api/openapi.yaml --issueType=syntax
       - name: Lint Postman collections and environments
         run: |
-          postman collection lint postman/collections/smoke
+          for c in postman/collections/*/; do postman collection lint "$c"; done
           postman environment lint postman/environments
       - name: Start stack
         run: docker compose up -d --build
@@ -54,6 +54,8 @@ jobs:
           exit 1
       - name: Smoke collection
         run: postman collection run postman/collections/smoke -e postman/environments/local.environment.yaml
+      - name: Negative collection
+        run: postman collection run postman/collections/negative -e postman/environments/local.environment.yaml
       - name: Stack logs on failure
         if: failure()
         run: docker compose logs

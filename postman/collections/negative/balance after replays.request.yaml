@@ -1,0 +1,15 @@
+$kind: http-request
+method: GET
+url: '{{base_url}}/v1/accounts/{{ada_account}}'
+order: 15000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{ada_token}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 200', () => pm.response.to.have.status(200));
+      pm.test('debited exactly once', () => pm.expect(pm.response.json().balance_minor).to.eql(4000));

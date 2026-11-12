@@ -1,0 +1,28 @@
+$kind: http-request
+method: POST
+url: '{{base_url}}/v1/customers'
+order: 3000
+headers:
+  - key: Content-Type
+    value: 'application/json'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{ops_token}}'
+body:
+  type: json
+  content: |-
+    {"email": "{{ada_email}}", "name": "Negative Test"}
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      pm.collectionVariables.set('ada_email', `neg-ada-${pm.variables.replaceIn('{{$guid}}')}@example.test`);
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('ada created', () => pm.response.to.have.status(201));
+      const c = pm.response.json().credentials;
+      pm.collectionVariables.set('ada_client_id', c.client_id);
+      pm.collectionVariables.set('ada_client_secret', c.client_secret);

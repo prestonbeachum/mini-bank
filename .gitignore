@@ -39,3 +39,4 @@ build/
 *.tfstate.*
 .terraform/
 .postman/resources.yaml
+.jqwik-database

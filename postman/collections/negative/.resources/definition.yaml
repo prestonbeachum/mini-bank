@@ -1,0 +1,8 @@
+$kind: collection
+name: Mini Bank negative
+description: |-
+  Rejections the API must make (build doc section 12): wrong owner, Idempotency-Key reuse
+  with a different body, insufficient funds, missing auth, validation. Frozen-account cases
+  arrive with the ops freeze endpoint. Each run creates its own synthetic customers.
+auth:
+  type: noauth
