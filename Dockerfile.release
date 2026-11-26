@@ -1,7 +1,7 @@
 # Release image: wraps the JAR the release workflow already built and tested. Nothing is
 # compiled here, so the image, the Lambda zip and the GitHub Release all carry the same bytes.
 # Base pinned by digest; Dependabot proposes digest updates.
-FROM eclipse-temurin:21-jre@sha256:194729a50fcca3b498180858b54cf1b2e3816208cf8d8a1fca9856635f72ca8a
+FROM eclipse-temurin:21-jre@sha256:d77e090ae1f6970c047b443c6f0a6c1358b0426d44432bb5a7753408cd43de0d
 LABEL org.opencontainers.image.source="https://github.com/prestonbeachum/mini-bank" \
       org.opencontainers.image.description="Mini Bank: synthetic core-banking backend. All money is fake." \
       org.opencontainers.image.licenses="MIT"
